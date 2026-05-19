@@ -170,12 +170,14 @@ INDEX_HTML = """<!doctype html>
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-bottom: 16px;
+      align-items: stretch;
     }
     .player {
       padding: 14px;
       border: 1px solid rgba(27, 34, 42, 0.1);
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.68);
+      min-height: 82px;
     }
     .player-label {
       display: flex;
@@ -192,7 +194,8 @@ INDEX_HTML = """<!doctype html>
       align-items: center;
     }
     .open-badge {
-      display: none;
+      display: inline-flex;
+      visibility: hidden;
       border-radius: 999px;
       padding: 4px 8px;
       background: #4e8f7c;
@@ -202,13 +205,14 @@ INDEX_HTML = """<!doctype html>
       letter-spacing: 0;
     }
     .open-badge.visible {
-      display: inline-flex;
+      visibility: visible;
     }
     .player-name {
       margin-top: 8px;
       font-size: 18px;
       font-weight: 700;
       overflow-wrap: anywhere;
+      min-height: 24px;
     }
     .tiny-stone {
       width: 16px;
