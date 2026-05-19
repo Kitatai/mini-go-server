@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini-Go Viewer</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Mini-Go Viewer</h1>
+      </div>
+      <div id="connection" class="status-pill"><span class="dot"></span><span>接続中</span></div>
+    </header>
+    <div class="layout">
+      <section class="surface board-panel">
+        <div class="match-line">
+          <div id="matchTitle">対局待機中</div>
+          <div id="result" class="result">進行前</div>
+        </div>
+        <div class="players">
+          <div id="blackCard" class="player">
+            <div class="player-topline">
+              <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
+              <div class="role-badges">
+                <div id="blackOpenBadge" class="role-badge">OPEN</div>
+                <div id="blackChooseBadge" class="role-badge choose">CHOOSE</div>
+              </div>
+            </div>
+            <div id="blackName" class="player-name">-</div>
+          </div>
+          <div id="whiteCard" class="player">
+            <div class="player-topline">
+              <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
+              <div class="role-badges">
+                <div id="whiteOpenBadge" class="role-badge">OPEN</div>
+                <div id="whiteChooseBadge" class="role-badge choose">CHOOSE</div>
+              </div>
+            </div>
+            <div id="whiteName" class="player-name">-</div>
+          </div>
+        </div>
+        <div class="opening-summary">
+          OPEN: <strong id="openingSummaryOpen">-</strong> / 初手: <strong id="openingSummaryMove">-</strong>
+        </div>
+        <div class="goban-wrap">
+          <div id="board" class="goban"></div>
+        </div>
+      </section>
+      <aside class="side">
+        <section class="surface stat-grid">
+          <div class="stat"><span>手番</span><strong id="nextTurn">-</strong></div>
+          <div class="stat"><span>最終手</span><strong id="lastMove">-</strong></div>
+          <div class="stat"><span>OPEN</span><strong id="openPlayer">-</strong></div>
+          <div class="stat"><span>初手</span><strong id="openingMove">-</strong></div>
+          <div class="stat"><span>イベント</span><strong id="eventCount">0</strong></div>
+        </section>
+        <details class="surface">
+          <summary>イベントログ</summary>
+          <div id="log" class="log"></div>
+        </details>
+      </aside>
+    </div>
+  </div>
+  <script src="/static/viewer.js"></script>
+</body>
+</html>
+
