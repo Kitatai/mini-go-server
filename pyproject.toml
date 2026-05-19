@@ -1,0 +1,20 @@
+[project]
+name = "mini-go-server"
+version = "0.1.0"
+description = "1次元Mini-GoのTCP対戦サーバーと参照ルールエンジン。"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[project.scripts]
+mini-go-server = "mini_go_server.cli:main"
+mini-go-random-client = "mini_go_sample_client.random_client:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.9.10,<0.10.0"]
+build-backend = "uv_build"
