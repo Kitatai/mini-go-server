@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from html import escape
 from typing import Any
+
+from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionResetError
 
 from .events import EventBus, ServerEvent
 
@@ -18,83 +20,56 @@ class WebViewer:
         self.port = port
 
     async def start(self) -> None:
-        server = await asyncio.start_server(self.handle_connection, self.host, self.port)
-        sockets = ", ".join(str(sock.getsockname()) for sock in server.sockets or [])
-        LOGGER.info("web viewer listening on %s", sockets)
-        async with server:
-            await server.serve_forever()
+        app = web.Application()
+        app.router.add_get("/", self.index)
+        app.router.add_get("/index.html", self.index)
+        app.router.add_get("/events", self.event_stream)
 
-    async def handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, self.host, self.port)
+        await site.start()
+        LOGGER.info("web viewer listening on http://%s:%s/", self.host, self.port)
         try:
-            request_line = await reader.readline()
-            if not request_line:
-                writer.close()
-                return
-            method, path, _version = request_line.decode("latin-1").strip().split(" ", 2)
-            await self.consume_headers(reader)
-
-            if method != "GET":
-                await self.send_response(writer, "405 Method Not Allowed", "text/plain; charset=utf-8", b"method not allowed")
-            elif path in {"/", "/index.html"}:
-                await self.send_response(writer, "200 OK", "text/html; charset=utf-8", INDEX_HTML.encode("utf-8"))
-            elif path == "/events":
-                await self.handle_events(writer)
-                return
-            else:
-                await self.send_response(writer, "404 Not Found", "text/plain; charset=utf-8", b"not found")
-        except Exception as exc:
-            LOGGER.debug("web viewer request failed: %s", exc)
+            await asyncio.Event().wait()
         finally:
-            writer.close()
-            await writer.wait_closed()
+            await runner.cleanup()
 
-    async def consume_headers(self, reader: asyncio.StreamReader) -> None:
-        while True:
-            line = await reader.readline()
-            if line in {b"\r\n", b"\n", b""}:
-                return
+    async def index(self, _request: web.Request) -> web.Response:
+        return web.Response(text=INDEX_HTML, content_type="text/html")
 
-    async def send_response(self, writer: asyncio.StreamWriter, status: str, content_type: str, body: bytes) -> None:
-        headers = [
-            f"HTTP/1.1 {status}",
-            f"Content-Type: {content_type}",
-            f"Content-Length: {len(body)}",
-            "Cache-Control: no-store",
-            "Connection: close",
-            "",
-            "",
-        ]
-        writer.write("\r\n".join(headers).encode("ascii") + body)
-        await writer.drain()
-
-    async def handle_events(self, writer: asyncio.StreamWriter) -> None:
-        headers = [
-            "HTTP/1.1 200 OK",
-            "Content-Type: text/event-stream; charset=utf-8",
-            "Cache-Control: no-store",
-            "Connection: keep-alive",
-            "X-Accel-Buffering: no",
-            "",
-            "",
-        ]
-        writer.write("\r\n".join(headers).encode("ascii"))
-        for event in self.events.history():
-            writer.write(format_sse(event))
-        await writer.drain()
+    async def event_stream(self, _request: web.Request) -> web.StreamResponse:
+        response = web.StreamResponse(
+            status=200,
+            headers={
+                "Content-Type": "text/event-stream; charset=utf-8",
+                "Cache-Control": "no-store",
+                "X-Accel-Buffering": "no",
+            },
+        )
+        await response.prepare(_request)
 
         subscription = self.events.subscribe()
         try:
+            for event in self.events.history():
+                await response.write(format_sse(event))
+            await response.drain()
+
             while True:
                 event = await subscription.get()  # type: ignore[attr-defined]
-                writer.write(format_sse(event))
-                await writer.drain()
+                await response.write(format_sse(event))
+                await response.drain()
+        except (ClientConnectionResetError, ConnectionResetError, asyncio.CancelledError):
+            LOGGER.debug("web viewer client disconnected")
         finally:
             self.events.unsubscribe(subscription)
+        return response
 
 
 def format_sse(event: ServerEvent) -> bytes:
-    data = {"sequence": event.sequence, "type": event.type, **event.payload}
-    return f"event: {escape(event.type)}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
+    data: dict[str, Any] = {"sequence": event.sequence, "type": event.type, **event.payload}
+    event_name = event.type.replace("\n", "")
+    return f"event: {event_name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n".encode("utf-8")
 
 
 INDEX_HTML = """<!doctype html>
@@ -106,146 +81,414 @@ INDEX_HTML = """<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f6f7f9;
-      color: #20242a;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #edf0f2;
+      color: #171a1f;
+    }
+    * {
+      box-sizing: border-box;
     }
     body {
       margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(194, 210, 221, 0.55), transparent 28rem),
+        linear-gradient(135deg, #f7f8f7 0%, #e9edf0 45%, #dfe5e7 100%);
+    }
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
     }
     header {
-      border-bottom: 1px solid #d9dde3;
-      background: #ffffff;
-      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 24px;
     }
     h1 {
-      font-size: 20px;
-      margin: 0 0 4px;
+      font-size: 30px;
+      line-height: 1.1;
+      margin: 0 0 8px;
+      letter-spacing: 0;
     }
-    main {
-      max-width: 1120px;
-      margin: 0 auto;
+    .subtitle {
+      margin: 0;
+      color: #5e6874;
+      font-size: 14px;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      border-radius: 999px;
+      padding: 7px 12px;
+      border: 1px solid rgba(20, 26, 32, 0.12);
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 10px 30px rgba(24, 35, 44, 0.08);
+      font-size: 13px;
+      color: #3e4752;
+      white-space: nowrap;
+    }
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #a0a8b2;
+    }
+    .connected .dot {
+      background: #24865a;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      align-items: start;
+    }
+    .surface {
+      border: 1px solid rgba(27, 34, 42, 0.12);
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 24px 70px rgba(28, 38, 48, 0.12);
+      border-radius: 8px;
+    }
+    .board-panel {
       padding: 24px;
     }
-    .status {
-      color: #5c6673;
+    .match-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 22px;
+      color: #4d5966;
       font-size: 14px;
     }
-    .board {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      padding: 16px 0;
+    .result {
+      color: #15191e;
+      font-weight: 700;
     }
-    .cell {
-      width: 40px;
-      height: 40px;
-      border: 1px solid #b7bec8;
+    .players {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .player {
+      padding: 14px;
+      border: 1px solid rgba(27, 34, 42, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.68);
+    }
+    .player-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #64707d;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    .player-name {
+      margin-top: 8px;
+      font-size: 18px;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .tiny-stone {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      display: inline-block;
+      flex: none;
+    }
+    .tiny-stone.black {
+      background: radial-gradient(circle at 32% 28%, #666d75, #15181d 58%, #060708);
+      box-shadow: inset -2px -3px 5px rgba(0, 0, 0, 0.45);
+    }
+    .tiny-stone.white {
+      background: radial-gradient(circle at 32% 28%, #ffffff, #f0f1ef 55%, #c7cac5);
+      border: 1px solid #b9bdb8;
+      box-shadow: inset -2px -3px 5px rgba(105, 109, 104, 0.2);
+    }
+    .goban-wrap {
+      overflow-x: auto;
+      padding: 14px 4px 6px;
+    }
+    .goban {
+      --cell-size: 52px;
+      --line-color: rgba(72, 58, 39, 0.52);
+      position: relative;
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: var(--cell-size);
+      min-height: 86px;
+      width: max-content;
+      padding: 18px 0;
+    }
+    .goban::before {
+      content: "";
+      position: absolute;
+      left: calc(var(--cell-size) / 2);
+      right: calc(var(--cell-size) / 2);
+      top: 44px;
+      height: 2px;
+      background: var(--line-color);
+    }
+    .point {
+      width: var(--cell-size);
+      height: 66px;
+      display: grid;
+      place-items: start center;
+      position: relative;
+    }
+    .point::before {
+      content: "";
+      position: absolute;
+      top: 21px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(72, 58, 39, 0.42);
+      transform: translateY(-50%);
+    }
+    .stone {
+      position: relative;
+      z-index: 1;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      margin-top: 0;
       display: grid;
       place-items: center;
+      font-size: 11px;
       font-weight: 700;
-      background: #ffffff;
     }
-    .black {
-      background: #20242a;
-      color: #ffffff;
+    .stone.empty {
+      color: #79836f;
+      background: transparent;
+      margin-top: 23px;
+      width: auto;
+      height: auto;
     }
-    .white {
-      background: #ffffff;
-      color: #20242a;
-      box-shadow: inset 0 0 0 2px #20242a;
+    .stone.black {
+      background: radial-gradient(circle at 30% 25%, #707881 0%, #1b1f25 58%, #07080a 100%);
+      color: transparent;
+      box-shadow: inset -6px -8px 12px rgba(0, 0, 0, 0.48), 0 10px 18px rgba(0, 0, 0, 0.22);
     }
-    .panel {
-      background: #ffffff;
-      border: 1px solid #d9dde3;
-      border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 16px;
+    .stone.white {
+      background: radial-gradient(circle at 30% 24%, #ffffff 0%, #f4f4f1 52%, #c8ccc5 100%);
+      color: transparent;
+      border: 1px solid rgba(98, 101, 96, 0.38);
+      box-shadow: inset -5px -7px 12px rgba(112, 116, 108, 0.2), 0 10px 18px rgba(58, 65, 70, 0.16);
     }
-    .meta {
+    .last .stone {
+      outline: 3px solid #4e8f7c;
+      outline-offset: 3px;
+    }
+    .index {
+      position: absolute;
+      top: 52px;
+      font-size: 11px;
+      color: #76806f;
+    }
+    .side {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 8px;
-      font-size: 14px;
+      gap: 14px;
+    }
+    .stat-grid {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+    }
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid rgba(27, 34, 42, 0.08);
+      padding-bottom: 10px;
+      color: #5e6874;
+      font-size: 13px;
+    }
+    .stat:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+    .stat strong {
+      color: #171a1f;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+    details {
+      overflow: hidden;
+    }
+    summary {
+      cursor: pointer;
+      padding: 16px;
+      font-weight: 700;
+      list-style: none;
+    }
+    summary::-webkit-details-marker {
+      display: none;
     }
     .log {
+      border-top: 1px solid rgba(27, 34, 42, 0.08);
+      padding: 14px 16px 16px;
+      max-height: 360px;
+      overflow: auto;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1.5;
       white-space: pre-wrap;
-      max-height: 420px;
-      overflow: auto;
+      color: #303842;
+      background: rgba(246, 248, 248, 0.72);
+    }
+    @media (max-width: 840px) {
+      .shell {
+        padding: 18px;
+      }
+      header {
+        flex-direction: column;
+      }
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .players {
+        grid-template-columns: 1fr;
+      }
+      .goban {
+        --cell-size: 46px;
+      }
     }
   </style>
 </head>
 <body>
-  <header>
-    <h1>Mini-Go Viewer</h1>
-    <div id="connection" class="status">接続中</div>
-  </header>
-  <main>
-    <section class="panel">
-      <div id="meta" class="meta"></div>
-      <div id="board" class="board"></div>
-    </section>
-    <section class="panel">
-      <div id="log" class="log"></div>
-    </section>
-  </main>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Mini-Go Viewer</h1>
+        <p class="subtitle">対局サーバーから配信される状態だけを表示します。</p>
+      </div>
+      <div id="connection" class="status-pill"><span class="dot"></span><span>接続中</span></div>
+    </header>
+    <div class="layout">
+      <section class="surface board-panel">
+        <div class="match-line">
+          <div id="matchTitle">対局待機中</div>
+          <div id="result" class="result">進行前</div>
+        </div>
+        <div class="players">
+          <div class="player">
+            <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
+            <div id="blackName" class="player-name">-</div>
+          </div>
+          <div class="player">
+            <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
+            <div id="whiteName" class="player-name">-</div>
+          </div>
+        </div>
+        <div class="goban-wrap">
+          <div id="board" class="goban"></div>
+        </div>
+      </section>
+      <aside class="side">
+        <section class="surface stat-grid">
+          <div class="stat"><span>手番</span><strong id="nextTurn">-</strong></div>
+          <div class="stat"><span>最終手</span><strong id="lastMove">-</strong></div>
+          <div class="stat"><span>イベント</span><strong id="eventCount">0</strong></div>
+        </section>
+        <details class="surface">
+          <summary>イベントログ</summary>
+          <div id="log" class="log"></div>
+        </details>
+      </aside>
+    </div>
+  </div>
   <script>
-    const connection = document.getElementById("connection");
-    const meta = document.getElementById("meta");
-    const board = document.getElementById("board");
-    const log = document.getElementById("log");
-    const state = {};
+    const state = { eventCount: 0, board: "" };
+    const ids = {
+      connection: document.getElementById("connection"),
+      matchTitle: document.getElementById("matchTitle"),
+      result: document.getElementById("result"),
+      blackName: document.getElementById("blackName"),
+      whiteName: document.getElementById("whiteName"),
+      nextTurn: document.getElementById("nextTurn"),
+      lastMove: document.getElementById("lastMove"),
+      eventCount: document.getElementById("eventCount"),
+      board: document.getElementById("board"),
+      log: document.getElementById("log"),
+    };
 
-    function renderBoard(text) {
+    function setConnection(text, connected) {
+      ids.connection.classList.toggle("connected", connected);
+      ids.connection.querySelector("span:last-child").textContent = text;
+    }
+
+    function renderBoard(text, lastMove) {
       if (!text) return;
-      board.innerHTML = "";
+      state.board = text;
+      ids.board.innerHTML = "";
       [...text].forEach((cell, index) => {
-        const el = document.createElement("div");
-        el.className = "cell";
-        if (cell === "X") el.classList.add("black");
-        if (cell === "O") el.classList.add("white");
-        el.textContent = cell === "." ? String(index) : cell;
-        board.appendChild(el);
+        const point = document.createElement("div");
+        point.className = "point";
+        if (index === lastMove) point.classList.add("last");
+        const stone = document.createElement("div");
+        stone.className = "stone";
+        if (cell === "X") stone.classList.add("black");
+        if (cell === "O") stone.classList.add("white");
+        if (cell === ".") stone.classList.add("empty");
+        stone.textContent = cell === "." ? "" : cell;
+        const label = document.createElement("div");
+        label.className = "index";
+        label.textContent = String(index);
+        point.append(stone, label);
+        ids.board.appendChild(point);
       });
     }
 
-    function renderMeta() {
-      const items = [
-        ["match", state.match_id ?? "-"],
-        ["BLACK", state.black ?? "-"],
-        ["WHITE", state.white ?? "-"],
-        ["next", state.next_turn ?? "-"],
-        ["result", state.result ?? "-"],
-      ];
-      meta.innerHTML = items.map(([k, v]) => `<div><strong>${k}</strong>: ${v}</div>`).join("");
-    }
-
     function appendLog(event) {
-      const line = `[${event.sequence}] ${event.type} ${JSON.stringify(event)}\\n`;
-      log.textContent += line;
-      log.scrollTop = log.scrollHeight;
+      ids.log.textContent += `[${event.sequence}] ${event.type} ${JSON.stringify(event)}\\n`;
+      ids.log.scrollTop = ids.log.scrollHeight;
     }
 
     function applyEvent(event) {
-      if (event.match_id !== undefined) state.match_id = event.match_id;
-      if (event.black) state.black = event.black;
-      if (event.white) state.white = event.white;
-      if (event.next_turn) state.next_turn = event.next_turn;
-      if (event.board) renderBoard(event.board);
-      if (event.type === "match_finished") state.result = `${event.winner_name} (${event.winner}) ${event.reason}`;
-      if (event.type === "match_forfeited") state.result = `${event.winner_name} wins by ${event.reason}`;
-      renderMeta();
+      state.eventCount = event.sequence;
+      if (event.match_id !== undefined) {
+        state.matchId = event.match_id;
+        ids.matchTitle.textContent = `match ${event.match_id}`;
+      }
+      if (event.black) ids.blackName.textContent = event.black;
+      if (event.white) ids.whiteName.textContent = event.white;
+      if (event.next_turn) ids.nextTurn.textContent = event.next_turn;
+      if (event.move !== undefined) ids.lastMove.textContent = `${event.color ?? ""} ${event.move}`;
+      if (event.board) renderBoard(event.board, event.move);
+      if (event.type === "match_started") {
+        ids.result.textContent = "対局中";
+        ids.nextTurn.textContent = "PIE_OPEN";
+      }
+      if (event.type === "opening_move") {
+        ids.nextTurn.textContent = "PIE_CHOOSE";
+      }
+      if (event.type === "pie_selected") {
+        ids.nextTurn.textContent = "WHITE";
+      }
+      if (event.type === "match_finished") {
+        ids.result.textContent = `${event.winner_name} (${event.winner}) 勝ち`;
+        ids.nextTurn.textContent = "GAME_OVER";
+      }
+      if (event.type === "match_forfeited") {
+        ids.result.textContent = `${event.winner_name || "opponent"} 勝ち`;
+        ids.nextTurn.textContent = "GAME_OVER";
+      }
+      ids.eventCount.textContent = String(state.eventCount);
       appendLog(event);
     }
 
-    renderMeta();
+    renderBoard(".......");
     const source = new EventSource("/events");
-    source.onopen = () => { connection.textContent = "接続済み"; };
-    source.onerror = () => { connection.textContent = "再接続中"; };
-    source.onmessage = (message) => applyEvent(JSON.parse(message.data));
+    source.onopen = () => setConnection("接続済み", true);
+    source.onerror = () => setConnection("再接続中", false);
     ["server_started", "client_ready", "match_started", "opening_move", "pie_selected", "move_played", "match_finished", "match_forfeited"].forEach((name) => {
       source.addEventListener(name, (message) => applyEvent(JSON.parse(message.data)));
     });

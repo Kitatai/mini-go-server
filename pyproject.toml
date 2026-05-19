@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "1次元Mini-GoのTCP対戦サーバーと参照ルールエンジン。"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "aiohttp>=3.13.5",
+]
 
 [project.scripts]
 mini-go-server = "mini_go_server.cli:main"
