@@ -29,6 +29,13 @@ uv run mini-go-random-client --name a
 uv run mini-go-random-client --name b
 ```
 
+サーバーのタイムアウト付近の挙動を見たい場合は、サンプルクライアントを制限時間ぎりぎりまで待たせられます。
+
+```bash
+uv run mini-go-random-client --name a --wait-until-deadline
+uv run mini-go-random-client --name b --wait-until-deadline --deadline-margin-ms 100
+```
+
 ## プロトコル
 
 [docs/protocol.md](docs/protocol.md) を参照してください。
