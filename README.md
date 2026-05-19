@@ -27,6 +27,14 @@ uv run mini-go-server -n 7 --move-time 1 --manual-opener-selection
 
 このモードでは、2 クライアントが揃うたびにサーバー端末へ候補が表示され、`1` または `2` の入力で `OPEN` 側を決定します。
 
+観戦用 Web サーバーを同時起動する場合は `--web` を付けます。
+
+```bash
+uv run mini-go-server -n 7 --move-time 1 --web
+```
+
+デフォルトでは `http://127.0.0.1:8080/` で対局の流れを表示します。Web 側は観戦専用で、対局進行や手動操作には関与しません。
+
 ## 簡易動作確認
 
 別々の端末で実行します。
