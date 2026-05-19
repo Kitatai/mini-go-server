@@ -263,15 +263,6 @@ INDEX_HTML = """<!doctype html>
       width: 100%;
       padding: 18px 0;
     }
-    .goban::before {
-      content: "";
-      position: absolute;
-      left: calc(var(--cell-size) / 2);
-      right: calc(var(--cell-size) / 2);
-      top: calc(18px + var(--point-top));
-      height: 2px;
-      background: var(--line-color);
-    }
     .point {
       width: var(--cell-size);
       height: var(--board-height);
@@ -614,7 +605,6 @@ INDEX_HTML = """<!doctype html>
       appendLog(event);
     }
 
-    renderBoard(".......");
     const source = new EventSource("/events");
     source.onopen = () => setConnection("接続済み", true);
     source.onerror = () => setConnection("再接続中", false);
