@@ -96,16 +96,16 @@ INDEX_HTML = """<!doctype html>
         linear-gradient(135deg, #f7f8f7 0%, #e9edf0 45%, #dfe5e7 100%);
     }
     .shell {
-      max-width: 1280px;
+      max-width: 1360px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 10px;
     }
     header {
       display: flex;
       justify-content: space-between;
       gap: 16px;
       align-items: flex-start;
-      margin-bottom: 24px;
+      margin-bottom: 12px;
     }
     h1 {
       font-size: 30px;
@@ -139,7 +139,7 @@ INDEX_HTML = """<!doctype html>
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 320px;
-      gap: 12px;
+      gap: 8px;
       align-items: start;
     }
     .surface {
@@ -150,14 +150,14 @@ INDEX_HTML = """<!doctype html>
       border-radius: 8px;
     }
     .board-panel {
-      padding: 18px;
+      padding: 10px;
     }
     .match-line {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      margin-bottom: 22px;
+      margin-bottom: 12px;
       color: #4d5966;
       font-size: 14px;
     }
@@ -313,12 +313,12 @@ INDEX_HTML = """<!doctype html>
     }
     .side {
       display: grid;
-      gap: 14px;
+      gap: 8px;
     }
     .stat-grid {
       display: grid;
       gap: 10px;
-      padding: 16px;
+      padding: 10px;
     }
     .stat {
       display: flex;
@@ -339,7 +339,7 @@ INDEX_HTML = """<!doctype html>
       overflow-wrap: anywhere;
     }
     .opening-summary {
-      padding: 16px;
+      padding: 10px;
       color: #5e6874;
       font-size: 13px;
     }
@@ -393,7 +393,7 @@ INDEX_HTML = """<!doctype html>
     }
     @media (max-width: 840px) {
       .shell {
-        padding: 12px;
+        padding: 6px;
       }
       header {
         flex-direction: column;
