@@ -185,6 +185,25 @@ INDEX_HTML = """<!doctype html>
       font-size: 12px;
       text-transform: uppercase;
     }
+    .player-topline {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+    .open-badge {
+      display: none;
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: #4e8f7c;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .open-badge.visible {
+      display: inline-flex;
+    }
     .player-name {
       margin-top: 8px;
       font-size: 18px;
@@ -315,6 +334,14 @@ INDEX_HTML = """<!doctype html>
       text-align: right;
       overflow-wrap: anywhere;
     }
+    .opening-summary {
+      padding: 16px;
+      color: #5e6874;
+      font-size: 13px;
+    }
+    .opening-summary strong {
+      color: #171a1f;
+    }
     details {
       overflow: hidden;
     }
@@ -395,13 +422,22 @@ INDEX_HTML = """<!doctype html>
         </div>
         <div class="players">
           <div class="player">
-            <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
+            <div class="player-topline">
+              <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
+              <div id="blackOpenBadge" class="open-badge">OPEN</div>
+            </div>
             <div id="blackName" class="player-name">-</div>
           </div>
           <div class="player">
-            <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
+            <div class="player-topline">
+              <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
+              <div id="whiteOpenBadge" class="open-badge">OPEN</div>
+            </div>
             <div id="whiteName" class="player-name">-</div>
           </div>
+        </div>
+        <div class="opening-summary">
+          OPEN: <strong id="openingSummaryOpen">-</strong> / 初手: <strong id="openingSummaryMove">-</strong>
         </div>
         <div class="goban-wrap">
           <div id="board" class="goban"></div>
@@ -430,10 +466,14 @@ INDEX_HTML = """<!doctype html>
       result: document.getElementById("result"),
       blackName: document.getElementById("blackName"),
       whiteName: document.getElementById("whiteName"),
+      blackOpenBadge: document.getElementById("blackOpenBadge"),
+      whiteOpenBadge: document.getElementById("whiteOpenBadge"),
       nextTurn: document.getElementById("nextTurn"),
       lastMove: document.getElementById("lastMove"),
       openPlayer: document.getElementById("openPlayer"),
       openingMove: document.getElementById("openingMove"),
+      openingSummaryOpen: document.getElementById("openingSummaryOpen"),
+      openingSummaryMove: document.getElementById("openingSummaryMove"),
       eventCount: document.getElementById("eventCount"),
       board: document.getElementById("board"),
       log: document.getElementById("log"),
@@ -471,6 +511,14 @@ INDEX_HTML = """<!doctype html>
       ids.log.scrollTop = ids.log.scrollHeight;
     }
 
+    function renderOpenBadges() {
+      const opener = ids.openPlayer.textContent;
+      ids.blackOpenBadge.classList.toggle("visible", opener !== "-" && ids.blackName.textContent === opener);
+      ids.whiteOpenBadge.classList.toggle("visible", opener !== "-" && ids.whiteName.textContent === opener);
+      ids.openingSummaryOpen.textContent = opener;
+      ids.openingSummaryMove.textContent = ids.openingMove.textContent;
+    }
+
     function applyEvent(event) {
       state.eventCount = event.sequence;
       if (event.match_id !== undefined) {
@@ -486,11 +534,15 @@ INDEX_HTML = """<!doctype html>
         ids.result.textContent = "対局中";
         ids.openPlayer.textContent = event.opener ?? "-";
         ids.openingMove.textContent = "-";
+        ids.openingSummaryOpen.textContent = event.opener ?? "-";
+        ids.openingSummaryMove.textContent = "-";
         ids.nextTurn.textContent = "PIE_OPEN";
       }
       if (event.type === "opening_move") {
         ids.openPlayer.textContent = event.player ?? ids.openPlayer.textContent;
         ids.openingMove.textContent = `${event.move}`;
+        ids.openingSummaryOpen.textContent = ids.openPlayer.textContent;
+        ids.openingSummaryMove.textContent = `${event.move}`;
         ids.nextTurn.textContent = "PIE_CHOOSE";
       }
       if (event.type === "pie_selected") {
@@ -505,6 +557,7 @@ INDEX_HTML = """<!doctype html>
         ids.nextTurn.textContent = "GAME_OVER";
       }
       ids.eventCount.textContent = String(state.eventCount);
+      renderOpenBadges();
       appendLog(event);
     }
 
