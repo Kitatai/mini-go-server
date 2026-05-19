@@ -319,18 +319,17 @@ INDEX_HTML = """<!doctype html>
       overflow: hidden;
     }
     summary {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      position: relative;
       cursor: pointer;
-      padding: 16px;
+      padding: 16px 16px 16px 46px;
       font-weight: 700;
       list-style: none;
     }
     summary::before {
       content: "›";
-      display: grid;
-      place-items: center;
+      position: absolute;
+      left: 16px;
+      top: 50%;
       width: 20px;
       height: 20px;
       border-radius: 50%;
@@ -339,10 +338,12 @@ INDEX_HTML = """<!doctype html>
       color: #4d5966;
       font-size: 18px;
       line-height: 1;
+      text-align: center;
+      transform: translateY(-50%);
       transition: transform 0.16s ease;
     }
     details[open] summary::before {
-      transform: rotate(90deg);
+      transform: translateY(-50%) rotate(90deg);
     }
     summary::-webkit-details-marker {
       display: none;
