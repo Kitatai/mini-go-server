@@ -96,9 +96,9 @@ INDEX_HTML = """<!doctype html>
         linear-gradient(135deg, #f7f8f7 0%, #e9edf0 45%, #dfe5e7 100%);
     }
     .shell {
-      max-width: 1180px;
+      max-width: 1280px;
       margin: 0 auto;
-      padding: 28px;
+      padding: 20px;
     }
     header {
       display: flex;
@@ -139,7 +139,7 @@ INDEX_HTML = """<!doctype html>
     .layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) 320px;
-      gap: 18px;
+      gap: 12px;
       align-items: start;
     }
     .surface {
@@ -150,7 +150,7 @@ INDEX_HTML = """<!doctype html>
       border-radius: 8px;
     }
     .board-panel {
-      padding: 24px;
+      padding: 18px;
     }
     .match-line {
       display: flex;
@@ -168,8 +168,8 @@ INDEX_HTML = """<!doctype html>
     .players {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 22px;
+      gap: 10px;
+      margin-bottom: 16px;
     }
     .player {
       padding: 14px;
@@ -228,7 +228,7 @@ INDEX_HTML = """<!doctype html>
     }
     .goban-wrap {
       overflow: hidden;
-      padding: 14px 0 6px;
+      padding: 10px 0 4px;
       width: 100%;
     }
     .goban {
@@ -393,7 +393,7 @@ INDEX_HTML = """<!doctype html>
     }
     @media (max-width: 840px) {
       .shell {
-        padding: 18px;
+        padding: 12px;
       }
       header {
         flex-direction: column;
