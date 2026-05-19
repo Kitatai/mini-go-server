@@ -21,6 +21,7 @@ class ServerConfig:
     move_time: float = 3.0
     handshake_time: float = 5.0
     pie_time: float = 10.0
+    manual_opener_selection: bool = False
 
 
 @dataclass
@@ -82,6 +83,7 @@ class MiniGoServer:
     def __init__(self, config: ServerConfig) -> None:
         self.config = config
         self.waiting: asyncio.Queue[Client] = asyncio.Queue()
+        self.pairing_lock = asyncio.Lock()
         self.next_slot = 1
 
     async def start(self) -> None:
@@ -100,15 +102,45 @@ class MiniGoServer:
             await self.handshake(client)
             await client.send("READY")
             await self.waiting.put(client)
-            if self.waiting.qsize() >= 2:
-                first = await self.waiting.get()
-                second = await self.waiting.get()
-                asyncio.create_task(self.run_match(first, second))
+            await self.start_available_matches()
         except Exception as exc:
             LOGGER.info("connection setup failed: %s", exc)
             with contextlib.suppress(Exception):
                 await client.send("ERROR", reason=str(exc))
             client.close()
+
+    async def start_available_matches(self) -> None:
+        async with self.pairing_lock:
+            while self.waiting.qsize() >= 2:
+                first = await self.waiting.get()
+                second = await self.waiting.get()
+                opener, chooser = await self.choose_opener(first, second)
+                asyncio.create_task(self.run_match(opener, chooser))
+
+    async def choose_opener(self, first: Client, second: Client) -> tuple[Client, Client]:
+        if not self.config.manual_opener_selection:
+            return first, second
+
+        print("")
+        print("OPEN 側を選択してください。")
+        print(f"  1: {first.name}  slot={first.slot}")
+        print(f"  2: {second.name}  slot={second.slot}")
+
+        while True:
+            try:
+                answer = await asyncio.to_thread(input, "OPEN にする番号 [1/2]: ")
+            except EOFError:
+                LOGGER.warning("manual opener selection received EOF; defaulting to %s", first.name)
+                return first, second
+
+            normalized = answer.strip()
+            if normalized == "1":
+                LOGGER.info("manual opener selection: open=%s choose=%s", first.name, second.name)
+                return first, second
+            if normalized == "2":
+                LOGGER.info("manual opener selection: open=%s choose=%s", second.name, first.name)
+                return second, first
+            print("1 または 2 を入力してください。")
 
     async def handshake(self, client: Client) -> None:
         await client.send(
@@ -334,6 +366,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--move-time", type=float, default=3.0, help="seconds per move")
     parser.add_argument("--handshake-time", type=float, default=5.0, help="seconds for REGISTER")
     parser.add_argument("--pie-time", type=float, default=10.0, help="seconds for TAKE BLACK|WHITE")
+    parser.add_argument(
+        "--manual-opener-selection",
+        action="store_true",
+        help="pairing 時にサーバー端末で OPEN 側を手動選択する",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     parser.add_argument("--quiet", "-q", action="store_true", help="suppress match progress logs")
     return parser
@@ -351,6 +388,7 @@ def run_from_args(argv: list[str] | None = None) -> None:
         move_time=args.move_time,
         handshake_time=args.handshake_time,
         pie_time=args.pie_time,
+        manual_opener_selection=args.manual_opener_selection,
     )
     try:
         asyncio.run(MiniGoServer(config).start())
