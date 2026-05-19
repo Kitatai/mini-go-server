@@ -193,18 +193,28 @@ INDEX_HTML = """<!doctype html>
       gap: 10px;
       align-items: center;
     }
-    .open-badge {
+    .role-badges {
+      display: inline-flex;
+      gap: 6px;
+      min-height: 22px;
+    }
+    .role-badge {
       display: inline-flex;
       visibility: hidden;
       border-radius: 999px;
       padding: 4px 8px;
+      min-width: 54px;
+      justify-content: center;
       background: #4e8f7c;
       color: #ffffff;
       font-size: 11px;
       font-weight: 800;
       letter-spacing: 0;
     }
-    .open-badge.visible {
+    .role-badge.choose {
+      background: #596d91;
+    }
+    .role-badge.visible {
       visibility: visible;
     }
     .player-name {
@@ -429,14 +439,20 @@ INDEX_HTML = """<!doctype html>
           <div class="player">
             <div class="player-topline">
               <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
-              <div id="blackOpenBadge" class="open-badge">OPEN</div>
+              <div class="role-badges">
+                <div id="blackOpenBadge" class="role-badge">OPEN</div>
+                <div id="blackChooseBadge" class="role-badge choose">CHOOSE</div>
+              </div>
             </div>
             <div id="blackName" class="player-name">-</div>
           </div>
           <div class="player">
             <div class="player-topline">
               <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
-              <div id="whiteOpenBadge" class="open-badge">OPEN</div>
+              <div class="role-badges">
+                <div id="whiteOpenBadge" class="role-badge">OPEN</div>
+                <div id="whiteChooseBadge" class="role-badge choose">CHOOSE</div>
+              </div>
             </div>
             <div id="whiteName" class="player-name">-</div>
           </div>
@@ -473,6 +489,8 @@ INDEX_HTML = """<!doctype html>
       whiteName: document.getElementById("whiteName"),
       blackOpenBadge: document.getElementById("blackOpenBadge"),
       whiteOpenBadge: document.getElementById("whiteOpenBadge"),
+      blackChooseBadge: document.getElementById("blackChooseBadge"),
+      whiteChooseBadge: document.getElementById("whiteChooseBadge"),
       nextTurn: document.getElementById("nextTurn"),
       lastMove: document.getElementById("lastMove"),
       openPlayer: document.getElementById("openPlayer"),
@@ -538,8 +556,13 @@ INDEX_HTML = """<!doctype html>
 
     function renderOpenBadges() {
       const opener = ids.openPlayer.textContent;
+      const blackName = ids.blackName.textContent;
+      const whiteName = ids.whiteName.textContent;
+      const chooser = state.chooser ?? "-";
       ids.blackOpenBadge.classList.toggle("visible", opener !== "-" && ids.blackName.textContent === opener);
       ids.whiteOpenBadge.classList.toggle("visible", opener !== "-" && ids.whiteName.textContent === opener);
+      ids.blackChooseBadge.classList.toggle("visible", chooser !== "-" && blackName === chooser);
+      ids.whiteChooseBadge.classList.toggle("visible", chooser !== "-" && whiteName === chooser);
       ids.openingSummaryOpen.textContent = opener;
       ids.openingSummaryMove.textContent = ids.openingMove.textContent;
     }
@@ -557,6 +580,7 @@ INDEX_HTML = """<!doctype html>
       if (event.board) renderBoard(event.board, event.move);
       if (event.type === "match_started") {
         ids.result.textContent = "対局中";
+        state.chooser = event.chooser ?? "-";
         ids.openPlayer.textContent = event.opener ?? "-";
         ids.openingMove.textContent = "-";
         ids.openingSummaryOpen.textContent = event.opener ?? "-";
