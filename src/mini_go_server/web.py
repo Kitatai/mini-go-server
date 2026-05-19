@@ -113,11 +113,6 @@ INDEX_HTML = """<!doctype html>
       margin: 0 0 8px;
       letter-spacing: 0;
     }
-    .subtitle {
-      margin: 0;
-      color: #5e6874;
-      font-size: 14px;
-    }
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -324,10 +319,30 @@ INDEX_HTML = """<!doctype html>
       overflow: hidden;
     }
     summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       cursor: pointer;
       padding: 16px;
       font-weight: 700;
       list-style: none;
+    }
+    summary::before {
+      content: "›";
+      display: grid;
+      place-items: center;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid rgba(27, 34, 42, 0.16);
+      background: rgba(255, 255, 255, 0.72);
+      color: #4d5966;
+      font-size: 18px;
+      line-height: 1;
+      transition: transform 0.16s ease;
+    }
+    details[open] summary::before {
+      transform: rotate(90deg);
     }
     summary::-webkit-details-marker {
       display: none;
@@ -368,7 +383,6 @@ INDEX_HTML = """<!doctype html>
     <header>
       <div>
         <h1>Mini-Go Viewer</h1>
-        <p class="subtitle">対局サーバーから配信される状態だけを表示します。</p>
       </div>
       <div id="connection" class="status-pill"><span class="dot"></span><span>接続中</span></div>
     </header>
@@ -396,6 +410,8 @@ INDEX_HTML = """<!doctype html>
         <section class="surface stat-grid">
           <div class="stat"><span>手番</span><strong id="nextTurn">-</strong></div>
           <div class="stat"><span>最終手</span><strong id="lastMove">-</strong></div>
+          <div class="stat"><span>OPEN</span><strong id="openPlayer">-</strong></div>
+          <div class="stat"><span>初手</span><strong id="openingMove">-</strong></div>
           <div class="stat"><span>イベント</span><strong id="eventCount">0</strong></div>
         </section>
         <details class="surface">
@@ -415,6 +431,8 @@ INDEX_HTML = """<!doctype html>
       whiteName: document.getElementById("whiteName"),
       nextTurn: document.getElementById("nextTurn"),
       lastMove: document.getElementById("lastMove"),
+      openPlayer: document.getElementById("openPlayer"),
+      openingMove: document.getElementById("openingMove"),
       eventCount: document.getElementById("eventCount"),
       board: document.getElementById("board"),
       log: document.getElementById("log"),
@@ -465,9 +483,13 @@ INDEX_HTML = """<!doctype html>
       if (event.board) renderBoard(event.board, event.move);
       if (event.type === "match_started") {
         ids.result.textContent = "対局中";
+        ids.openPlayer.textContent = event.opener ?? "-";
+        ids.openingMove.textContent = "-";
         ids.nextTurn.textContent = "PIE_OPEN";
       }
       if (event.type === "opening_move") {
+        ids.openPlayer.textContent = event.player ?? ids.openPlayer.textContent;
+        ids.openingMove.textContent = `${event.move}`;
         ids.nextTurn.textContent = "PIE_CHOOSE";
       }
       if (event.type === "pie_selected") {
