@@ -179,6 +179,11 @@ INDEX_HTML = """<!doctype html>
       background: rgba(255, 255, 255, 0.68);
       min-height: 82px;
     }
+    .player.winner {
+      border-color: #2c9a67;
+      background: rgba(229, 246, 238, 0.82);
+      box-shadow: inset 0 0 0 1px rgba(44, 154, 103, 0.2);
+    }
     .player-label {
       display: flex;
       align-items: center;
@@ -431,7 +436,7 @@ INDEX_HTML = """<!doctype html>
           <div id="result" class="result">進行前</div>
         </div>
         <div class="players">
-          <div class="player">
+          <div id="blackCard" class="player">
             <div class="player-topline">
               <div class="player-label"><span class="tiny-stone black"></span>BLACK</div>
               <div class="role-badges">
@@ -441,7 +446,7 @@ INDEX_HTML = """<!doctype html>
             </div>
             <div id="blackName" class="player-name">-</div>
           </div>
-          <div class="player">
+          <div id="whiteCard" class="player">
             <div class="player-topline">
               <div class="player-label"><span class="tiny-stone white"></span>WHITE</div>
               <div class="role-badges">
@@ -482,6 +487,8 @@ INDEX_HTML = """<!doctype html>
       result: document.getElementById("result"),
       blackName: document.getElementById("blackName"),
       whiteName: document.getElementById("whiteName"),
+      blackCard: document.getElementById("blackCard"),
+      whiteCard: document.getElementById("whiteCard"),
       blackOpenBadge: document.getElementById("blackOpenBadge"),
       whiteOpenBadge: document.getElementById("whiteOpenBadge"),
       blackChooseBadge: document.getElementById("blackChooseBadge"),
@@ -562,6 +569,17 @@ INDEX_HTML = """<!doctype html>
       ids.openingSummaryMove.textContent = ids.openingMove.textContent;
     }
 
+    function clearWinner() {
+      ids.blackCard.classList.remove("winner");
+      ids.whiteCard.classList.remove("winner");
+    }
+
+    function markWinner(winnerName) {
+      clearWinner();
+      if (ids.blackName.textContent === winnerName) ids.blackCard.classList.add("winner");
+      if (ids.whiteName.textContent === winnerName) ids.whiteCard.classList.add("winner");
+    }
+
     function applyEvent(event) {
       state.eventCount = event.sequence;
       if (event.match_id !== undefined) {
@@ -574,6 +592,7 @@ INDEX_HTML = """<!doctype html>
       if (event.move !== undefined) ids.lastMove.textContent = `${event.color ?? ""} ${event.move}`;
       if (event.board) renderBoard(event.board, event.move);
       if (event.type === "match_started") {
+        clearWinner();
         ids.result.textContent = "対局中";
         state.chooser = event.chooser ?? "-";
         ids.openPlayer.textContent = event.opener ?? "-";
@@ -595,10 +614,12 @@ INDEX_HTML = """<!doctype html>
       if (event.type === "match_finished") {
         ids.result.textContent = `${event.winner_name} (${event.winner}) 勝ち`;
         ids.nextTurn.textContent = "GAME_OVER";
+        markWinner(event.winner_name);
       }
       if (event.type === "match_forfeited") {
         ids.result.textContent = `${event.winner_name || "opponent"} 勝ち`;
         ids.nextTurn.textContent = "GAME_OVER";
+        markWinner(event.winner_name);
       }
       ids.eventCount.textContent = String(state.eventCount);
       renderOpenBadges();
