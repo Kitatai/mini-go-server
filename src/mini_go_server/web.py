@@ -227,18 +227,22 @@ INDEX_HTML = """<!doctype html>
       box-shadow: inset -2px -3px 5px rgba(105, 109, 104, 0.2);
     }
     .goban-wrap {
-      overflow-x: auto;
-      padding: 14px 4px 6px;
+      overflow: hidden;
+      padding: 14px 0 6px;
+      width: 100%;
     }
     .goban {
       --cell-size: 52px;
+      --stone-size: 42px;
+      --point-top: 21px;
+      --board-height: 72px;
       --line-color: rgba(72, 58, 39, 0.52);
       position: relative;
       display: grid;
       grid-auto-flow: column;
       grid-auto-columns: var(--cell-size);
-      min-height: 86px;
-      width: max-content;
+      min-height: var(--board-height);
+      width: 100%;
       padding: 18px 0;
     }
     .goban::before {
@@ -246,13 +250,13 @@ INDEX_HTML = """<!doctype html>
       position: absolute;
       left: calc(var(--cell-size) / 2);
       right: calc(var(--cell-size) / 2);
-      top: 44px;
+      top: calc(18px + var(--point-top));
       height: 2px;
       background: var(--line-color);
     }
     .point {
       width: var(--cell-size);
-      height: 66px;
+      height: var(--board-height);
       display: grid;
       place-items: start center;
       position: relative;
@@ -260,7 +264,7 @@ INDEX_HTML = """<!doctype html>
     .point::before {
       content: "";
       position: absolute;
-      top: 21px;
+      top: var(--point-top);
       width: 8px;
       height: 8px;
       border-radius: 50%;
@@ -270,8 +274,8 @@ INDEX_HTML = """<!doctype html>
     .stone {
       position: relative;
       z-index: 1;
-      width: 42px;
-      height: 42px;
+      width: var(--stone-size);
+      height: var(--stone-size);
       border-radius: 50%;
       margin-top: 0;
       display: grid;
@@ -282,7 +286,7 @@ INDEX_HTML = """<!doctype html>
     .stone.empty {
       color: #79836f;
       background: transparent;
-      margin-top: 23px;
+      margin-top: calc(var(--point-top) + 2px);
       width: auto;
       height: auto;
     }
@@ -298,13 +302,13 @@ INDEX_HTML = """<!doctype html>
       box-shadow: inset -5px -7px 12px rgba(112, 116, 108, 0.2), 0 10px 18px rgba(58, 65, 70, 0.16);
     }
     .last .stone {
-      outline: 3px solid #4e8f7c;
-      outline-offset: 3px;
+      outline: max(2px, calc(var(--stone-size) * 0.07)) solid #4e8f7c;
+      outline-offset: max(2px, calc(var(--stone-size) * 0.06));
     }
     .index {
       position: absolute;
-      top: 52px;
-      font-size: 11px;
+      top: calc(var(--point-top) + var(--stone-size) + 8px);
+      font-size: clamp(8px, calc(var(--cell-size) * 0.22), 11px);
       color: #76806f;
     }
     .side {
@@ -400,9 +404,6 @@ INDEX_HTML = """<!doctype html>
       .players {
         grid-template-columns: 1fr;
       }
-      .goban {
-        --cell-size: 46px;
-      }
     }
   </style>
 </head>
@@ -488,6 +489,7 @@ INDEX_HTML = """<!doctype html>
       if (!text) return;
       state.board = text;
       ids.board.innerHTML = "";
+      fitBoard(text.length);
       [...text].forEach((cell, index) => {
         const point = document.createElement("div");
         point.className = "point";
@@ -505,6 +507,25 @@ INDEX_HTML = """<!doctype html>
         ids.board.appendChild(point);
       });
     }
+
+    function fitBoard(size) {
+      const wrap = ids.board.parentElement;
+      const available = Math.max(260, wrap.clientWidth);
+      const naturalCell = 52;
+      const minCell = 16;
+      const cell = Math.max(minCell, Math.min(naturalCell, Math.floor(available / Math.max(1, size))));
+      const stone = Math.max(12, Math.min(42, Math.floor(cell * 0.82)));
+      const pointTop = Math.max(10, Math.floor(stone / 2));
+      const boardHeight = Math.max(46, pointTop + stone + 24);
+      ids.board.style.setProperty("--cell-size", `${cell}px`);
+      ids.board.style.setProperty("--stone-size", `${stone}px`);
+      ids.board.style.setProperty("--point-top", `${pointTop}px`);
+      ids.board.style.setProperty("--board-height", `${boardHeight}px`);
+    }
+
+    window.addEventListener("resize", () => {
+      if (state.board) renderBoard(state.board);
+    });
 
     function appendLog(event) {
       ids.log.textContent += `[${event.sequence}] ${event.type} ${JSON.stringify(event)}\\n`;
