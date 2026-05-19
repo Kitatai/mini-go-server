@@ -196,7 +196,10 @@ INDEX_HTML = """<!doctype html>
     .role-badges {
       display: inline-flex;
       gap: 6px;
+      justify-content: flex-end;
+      margin-left: auto;
       min-height: 22px;
+      min-width: 114px;
     }
     .role-badge {
       display: inline-flex;
